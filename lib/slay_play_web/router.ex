@@ -19,7 +19,7 @@ defmodule SlayPlayWeb.Router do
 
     live "/", HomeLive.Home, :index
 
-    get "/files/:id", FileController, :show
+    get "/files/:type/:id", FileController, :show
 
     live "/admin", AdminLive.Index, :index
     live "/admin/songs", AdminLive.Songs, :index

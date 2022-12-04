@@ -12,7 +12,7 @@ defmodule SlayPlay.Player.Events do
   end
 
   defmodule SlideChanged do
-    defstruct slide: nil
+    defstruct station: nil, slide: nil
   end
 
   defmodule SlideCreated do

@@ -7,6 +7,8 @@ defmodule SlayPlay.Player.Slide do
     field :subtitle, :string
     field :img_name, :string
 
+    has_many :stations, SlayPlay.Player.Station
+
     timestamps()
   end
 
@@ -29,6 +31,12 @@ defmodule SlayPlay.Player.Slide do
 
   def img_url(filename) do
     %{scheme: scheme, host: host, port: port} = Enum.into(SlayPlay.config([:files, :host]), %{})
-    URI.to_string(%URI{scheme: scheme, host: host, port: port, path: "/files/#{filename}"})
+
+    URI.to_string(%URI{
+      scheme: scheme,
+      host: host,
+      port: port,
+      path: "/files/background/#{filename}"
+    })
   end
 end

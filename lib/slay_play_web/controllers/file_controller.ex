@@ -8,11 +8,12 @@ defmodule SlayPlayWeb.FileController do
 
   require Logger
 
-  def show(conn, %{"id" => filename_uuid, "token" => token}) do
-    path = Player.local_filepath(filename_uuid)
+  def show(conn, %{"id" => filename_uuid, "token" => token, "type" => type}) do
+    path = Player.local_filepath(filename_uuid, String.to_existing_atom(type))
+    IO.inspect(path)
 
     case Phoenix.Token.decrypt(conn, "file", token, max_age: :timer.minutes(1)) do
-      {:ok, %{vsn: 1, uuid: ^filename_uuid, size: size}} ->
+      {:ok, %{vsn: 1, uuid: ^filename_uuid}} ->
         Logger.info("serving file from local")
         do_send_file(conn, path)
 

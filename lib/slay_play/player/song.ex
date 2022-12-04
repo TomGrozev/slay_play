@@ -69,6 +69,6 @@ defmodule SlayPlay.Player.Song do
 
   defp mp3_url(filename) do
     %{scheme: scheme, host: host, port: port} = Enum.into(SlayPlay.config([:files, :host]), %{})
-    URI.to_string(%URI{scheme: scheme, host: host, port: port, path: "/files/#{filename}"})
+    URI.to_string(%URI{scheme: scheme, host: host, port: port, path: "/files/songs/#{filename}"})
   end
 end

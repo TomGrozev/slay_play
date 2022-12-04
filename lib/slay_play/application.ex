@@ -18,9 +18,10 @@ defmodule SlayPlay.Application do
       # Start presence
       # SlayPlayWeb.Presence,
       # Start the Endpoint (http/https)
-      SlayPlayWeb.Endpoint
+      SlayPlayWeb.Endpoint,
       # Start a worker by calling: SlayPlay.Worker.start_link(arg)
       # {SlayPlay.Worker, arg}
+      SlayPlay.SlideClock
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

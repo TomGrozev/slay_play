@@ -1,1 +1,10 @@
-<img class="h-screen" src={@bg_path} />
+<div class="fixed top-0 left-0 flex items-center justify-center w-full h-screen">
+  <img class="min-w-full min-h-full" src={@bg_path} />
+</div>
+
+<div class="fixed w-full h-full flex items-center justify-center">
+  <div>
+    <h1 class="text-white text-8xl text-center focus:outline-none"><%= @title %></h1>
+    <h3 class="text-white text-3xl text-center focus:outline-none"><%= @subtitle %></h3>
+  </div>
+</div>

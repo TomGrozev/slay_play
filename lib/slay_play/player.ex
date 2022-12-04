@@ -7,7 +7,7 @@ defmodule SlayPlay.Player do
 
   import Ecto.Query, warn: false
   alias SlayPlay.{MP3Stat, Repo}
-  alias SlayPlay.Player.{Events, Song, Slide}
+  alias SlayPlay.Player.{Events, Song, Slide, Station}
   alias Ecto.{Changeset, Multi}
 
   @pubsub SlayPlay.PubSub
@@ -41,6 +41,14 @@ defmodule SlayPlay.Player do
     dir = SlayPlay.config([:files, :uploads_dir])
     Path.join([dir, to_string(type), filename_uuid])
   end
+
+  @doc """
+  Returns the url for a background image
+
+  Uses phoenix token
+  """
+  def slide_img_url(%Slide{img_name: filename}, token) when is_binary(token),
+    do: Slide.img_url(filename) <> "?token=#{token}"
 
   @doc """
   Plays a song on all subscribed
@@ -84,7 +92,7 @@ defmodule SlayPlay.Player do
 
     elapsed = elapsed_playback(new_song)
 
-    broadcast!(%Events.Play{song: song, elapsed: elapsed} |> IO.inspect())
+    broadcast!(%Events.Play{song: song, elapsed: elapsed})
 
     new_song
   end
@@ -151,6 +159,26 @@ defmodule SlayPlay.Player do
   end
 
   @doc """
+  Plays the next slide for a station
+  """
+  def set_next_slide(%Station{} = station) do
+    current_slide = get_current_active_slide(station.name) || get_first_slide()
+
+    if next_slide = get_next_slide(current_slide) do
+      set_slide(next_slide, station.name)
+    end
+  end
+
+  @doc """
+  Gets the current active slide
+  """
+  def get_current_active_slide(station_name) do
+    get_station!(station_name)
+    |> Repo.preload(:active_slide)
+    |> Map.get(:active_slide)
+  end
+
+  @doc """
   Gets the current active song
 
   An active is one that is either `:playing` or `:paused`.
@@ -158,6 +186,33 @@ defmodule SlayPlay.Player do
   """
   def get_current_active_song do
     Repo.one(from s in Song, where: s.status in [:playing, :paused])
+  end
+
+  @doc """
+  Sets the current slide for a station
+
+  Default to the "default" player
+  """
+  def set_slide(%Slide{} = slide, station \\ "default") do
+    station = get_station!("default") |> Repo.preload(:active_slide)
+    changeset = Station.changeset(station, %{}) |> Station.put_slide(slide)
+
+    {:ok, station} = Repo.update(changeset)
+
+    broadcast!(%Events.SlideChanged{station: station, slide: slide})
+
+    station
+  end
+
+  @doc """
+  Lists all stations
+
+  An optional limit can be supplied (defaults to 100)
+  """
+  def list_stations(limit \\ 100) do
+    from(s in Station, limit: ^limit)
+    |> order_by_playlist(:asc)
+    |> Repo.all()
   end
 
   @doc """
@@ -223,27 +278,6 @@ defmodule SlayPlay.Player do
 
         Ecto.Multi.insert(acc, {:song, ref}, chset)
       end)
-
-    # |> Ecto.Multi.run(:valid_songs_count, fn _repo, changes ->
-    #   new_songs_count = changes |> Enum.filter(&match?({{:song, _ref}, _}, &1)) |> Enum.count()
-    #   validate_songs_limit(user.songs_count, new_songs_count)
-    # end)
-    # |> Ecto.Multi.update_all(
-    #   :update_songs_count,
-    #   fn %{valid_songs_count: new_count} ->
-    #     from(u in Accounts.User,
-    #       where: u.id == ^user.id and u.songs_count == ^user.songs_count,
-    #       update: [inc: [songs_count: ^new_count]]
-    #     )
-    #   end,
-    #   []
-    # )
-    # |> Ecto.Multi.run(:is_songs_count_updated?, fn _repo, %{update_songs_count: result} ->
-    #   case result do
-    #     {1, _} -> {:ok, user}
-    #     _ -> {:error, :invalid}
-    #   end
-    # end)
 
     case SlayPlay.Repo.transaction(multi) do
       {:ok, results} ->
@@ -340,6 +374,11 @@ defmodule SlayPlay.Player do
   end
 
   @doc """
+  Gets a station by name
+  """
+  def get_station!(name), do: Repo.get_by!(Station, name: name)
+
+  @doc """
   Gets a song by id
   """
   def get_song!(id), do: Repo.get!(Song, id)
@@ -347,7 +386,7 @@ defmodule SlayPlay.Player do
   @doc """
   Gets a slide by id
   """
-  def get_slide(id), do: Repo.get!(Slide, id)
+  def get_slide!(id), do: Repo.get!(Slide, id)
 
   @doc """
   Gets the first song in the list
@@ -400,6 +439,32 @@ defmodule SlayPlay.Player do
       |> Repo.one()
 
     prev || get_last_song()
+  end
+
+  @doc """
+  Gets the first slide
+  """
+  def get_first_slide do
+    from(s in Slide,
+      limit: 1
+    )
+    |> order_by_playlist(:asc)
+    |> Repo.one()
+  end
+
+  @doc """
+  Gets the next slide
+  """
+  def get_next_slide(%Slide{} = slide) do
+    next =
+      from(s in Slide,
+        where: s.id > ^slide.id,
+        limit: 1
+      )
+      |> order_by_playlist(:asc)
+      |> Repo.one()
+
+    next || get_first_slide()
   end
 
   @doc """

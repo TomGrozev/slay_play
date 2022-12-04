@@ -36,6 +36,7 @@ defmodule SlayPlayWeb.AdminLive.Slides do
       id="slides"
       module={SlideRowComponent}
       rows={@slides}
+      active_id={@active_slide_id}
       row_id={fn slide -> "slide-#{slide.id}" end}
     >
       <:col :let={%{slide: slide}} label="Title"><%= slide.title %></:col>
@@ -58,7 +59,14 @@ defmodule SlayPlayWeb.AdminLive.Slides do
       Player.subscribe()
     end
 
-    {:ok, list_slides(socket)}
+    active_slide_id = Player.get_current_active_slide("default").id
+
+    socket =
+      socket
+      |> assign(:active_slide_id, active_slide_id)
+      |> list_slides()
+
+    {:ok, socket, temporary_assigns: [slides: []]}
   end
 
   def handle_params(params, _url, socket) do
@@ -66,8 +74,16 @@ defmodule SlayPlayWeb.AdminLive.Slides do
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
+  def handle_event("set_slide", %{"id" => id}, socket) do
+    slide = Player.get_slide!(id)
+
+    Player.set_slide(slide)
+
+    {:noreply, socket}
+  end
+
   def handle_event("delete", %{"id" => id}, socket) do
-    slide = Player.get_slide(id)
+    slide = Player.get_slide!(id)
 
     :ok = Player.delete_slide(slide)
 
@@ -76,6 +92,14 @@ defmodule SlayPlayWeb.AdminLive.Slides do
 
   def handle_info({Player, %Player.Events.SlideCreated{slide: slide}}, socket) do
     {:noreply, update(socket, :slides, &(&1 ++ [slide]))}
+  end
+
+  def handle_info({Player, %Player.Events.SlideChanged{station: _station, slide: slide}}, socket) do
+    {:noreply, assign(socket, :active_slide_id, slide.id)}
+  end
+
+  def handle_info({Player, _}, socket) do
+    {:noreply, socket}
   end
 
   defp apply_action(socket, :index, _params) do
