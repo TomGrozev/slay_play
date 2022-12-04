@@ -1,12 +1,12 @@
-<p class="alert alert-info" role="alert"
-  phx-click="lv:clear-flash"
-  phx-value-key="info"><%= live_flash(@flash, :info) %></p>
+<.flash flash={@flash} kind={:info} />
+<.flash flash={@flash} kind={:error} />
 
-<p class="alert alert-danger" role="alert"
-  phx-click="lv:clear-flash"
-  phx-value-key="error"><%= live_flash(@flash, :error) %></p>
+<.connection_status>
+  Re-establishing connection...
+</.connection_status>
 
 <.live_component module={SlayPlayWeb.LayoutComponent} id="layout" />
+
 <main class="container-full">
   <%= @inner_content %>
 </main>
