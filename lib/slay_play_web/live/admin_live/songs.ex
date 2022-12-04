@@ -9,6 +9,11 @@ defmodule SlayPlayWeb.AdminLive.Songs do
   @impl true
   def render(assigns) do
     ~H"""
+    <div class="mt-4 flex justify-end items-center">
+      <.button id="upload-btn" primary patch={Routes.admin_songs_path(@socket, :new)}>
+        <.icon name={:arrow_up_tray} /><span class="ml-2">Upload Songs</span>
+      </.button>
+    </div>
     <div id="dialogs" phx-update="append">
       <%= for song <- @songs, id = "delete-modal-#{song.id}" do %>
         <.modal
@@ -157,7 +162,7 @@ defmodule SlayPlayWeb.AdminLive.Songs do
     LayoutComponent.show_modal(SongUploadFormComponent, %{
       id: :new,
       confirm: {"Save", type: "submit", form: "song-form"},
-      patch: "",
+      patch: SlayPlayWeb.Router.Helpers.admin_songs_path(socket, :index),
       song: socket.assigns.song,
       title: socket.assigns.page_title
     })

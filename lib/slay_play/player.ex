@@ -68,7 +68,7 @@ defmodule SlayPlay.Player do
 
     stopped_query =
       from s in Song,
-        where: s.status in [:playing, :paused],
+        where: s.id != ^id and s.status in [:playing, :paused],
         update: [set: [status: :stopped]]
 
     {:ok, %{now_playing: new_song}} =
