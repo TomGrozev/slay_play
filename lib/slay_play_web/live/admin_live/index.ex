@@ -10,6 +10,11 @@ defmodule SlayPlayWeb.AdminLive.Index do
     {:ok, socket}
   end
 
+  def handle_params(params, _url, socket) do
+    LayoutComponent.hide_modal()
+    {:noreply, apply_action(socket, socket.assigns.live_action, params)}
+  end
+
   defp apply_action(socket, :new, _params) do
     socket
     |> assign(:page_title, "Add Music")

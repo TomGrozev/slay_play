@@ -14,7 +14,6 @@ defmodule SlayPlay.Player.Song do
     field :duration, :integer
     field :status, Ecto.Enum, values: [stopped: 1, playing: 2, paused: 3]
     field :title, :string
-    field :attribution, :string
     field :mp3_url, :string
     field :mp3_filepath, :string
     field :mp3_filename, :string
@@ -30,7 +29,7 @@ defmodule SlayPlay.Player.Song do
   @doc false
   def changeset(song, attrs) do
     song
-    |> cast(attrs, [:album_artist, :artist, :title, :attribution, :date_released, :date_recorded])
+    |> cast(attrs, [:album_artist, :artist, :title, :date_released, :date_recorded])
     |> validate_required([:artist, :title])
     |> unique_constraint(:title,
       message: "is duplicated from another song",

@@ -8,6 +8,7 @@ defmodule SlayPlay.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      {Task.Supervisor, name: SlayPlay.TaskSupervisor},
       # Start the Ecto repository
       SlayPlay.Repo,
       # Start the Telemetry supervisor

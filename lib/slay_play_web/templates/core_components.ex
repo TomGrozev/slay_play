@@ -1,6 +1,8 @@
 defmodule SlayPlayWeb.CoreComponents do
   use Phoenix.Component
 
+  import SlayPlayWeb.ErrorHelpers
+
   alias Phoenix.LiveView.JS
 
   slot(:inner_block)
@@ -121,6 +123,50 @@ defmodule SlayPlayWeb.CoreComponents do
     """
   end
 
+  def spinner(assigns) do
+    ~H"""
+    <svg
+      class="inline-block animate-spin h-2.5 w-2.5 text-gray-400"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+      </circle>
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      >
+      </path>
+    </svg>
+    """
+  end
+
+  def error(%{errors: errors, field: field} = assigns) do
+    assigns =
+      assigns
+      |> assign(:error_values, Keyword.get_values(errors, field))
+      |> assign_new(:class, fn -> "" end)
+
+    ~H"""
+    <%= for error <- @error_values do %>
+      <span
+        phx-feedback-for={@input_name}
+        class={
+          "invalid-feedback inline-block pl-2 pr-2 text-sm text-white bg-red-600 rounded-md #{@class}"
+        }
+      >
+        <%= translate_error(error) %>
+      </span>
+    <% end %>
+    <%= if Enum.empty?(@error_values) do %>
+      <span class={"invalid-feedback inline-block h-0 #{@class}"}></span>
+    <% end %>
+    """
+  end
+
   attr :name, :atom, required: true
   attr :outlined, :boolean, default: false
   attr :rest, :global, default: %{class: "w-4 h-4 inline-block"}
@@ -129,11 +175,7 @@ defmodule SlayPlayWeb.CoreComponents do
     assigns = assign_new(assigns, :"aria-hidden", fn -> !Map.has_key?(assigns, :"aria-label") end)
 
     ~H"""
-    <%= if @outlined do %>
-      <%= apply(Heroicons.Outline, @name, [Map.to_list(@rest)]) %>
-    <% else %>
-      <%= apply(Heroicons.Solid, @name, [Map.to_list(@rest)]) %>
-    <% end %>
+    <%= apply(Heroicons, @name, [Map.merge(@rest, %{__changed__: nil, solid: not @outlined})]) %>
     """
   end
 
