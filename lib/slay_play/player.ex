@@ -33,13 +33,18 @@ defmodule SlayPlay.Player do
   end
 
   @doc """
-  Gets the local filepath for songs
+  Gets the local filepath for a file type
+
+  Defaults to the songs folder
   """
-  def local_filepath(filename_uuid) when is_binary(filename_uuid) do
+  def local_filepath(filename_uuid, type \\ :songs) when is_binary(filename_uuid) do
     dir = SlayPlay.config([:files, :uploads_dir])
-    Path.join([dir, "songs", filename_uuid])
+    Path.join([dir, type, filename_uuid])
   end
 
+  @doc """
+  Plays a song on all subscribed
+  """
   def play_song(%Song{id: id}) do
     play_song(id)
   end
@@ -68,7 +73,7 @@ defmodule SlayPlay.Player do
 
     stopped_query =
       from s in Song,
-        where: s.id != ^id and s.status in [:playing, :paused],
+        where: s.status in [:playing, :paused],
         update: [set: [status: :stopped]]
 
     {:ok, %{now_playing: new_song}} =
@@ -79,11 +84,14 @@ defmodule SlayPlay.Player do
 
     elapsed = elapsed_playback(new_song)
 
-    broadcast!(%Events.Play{song: song, elapsed: elapsed})
+    broadcast!(%Events.Play{song: song, elapsed: elapsed} |> IO.inspect())
 
     new_song
   end
 
+  @doc """
+  Pauses a song for all subscribed
+  """
   def pause_song(%Song{} = song) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
     set = [status: :paused, paused_at: now]
@@ -103,6 +111,9 @@ defmodule SlayPlay.Player do
     broadcast!(%Events.Pause{song: song})
   end
 
+  @doc """
+  Automatically plays the next song at the end
+  """
   def play_next_song_auto do
     song = get_current_active_song() || get_first_song()
 
@@ -113,6 +124,11 @@ defmodule SlayPlay.Player do
     end
   end
 
+  @doc """
+  Plays the previous song in the list
+
+  If there is no active song, the first is used
+  """
   def play_prev_song do
     song = get_current_active_song() || get_first_song()
 
@@ -121,6 +137,11 @@ defmodule SlayPlay.Player do
     end
   end
 
+  @doc """
+  Plays the next song in the list
+
+  If there is no active song, the first is used
+  """
   def play_next_song do
     song = get_current_active_song() || get_first_song()
 
@@ -129,21 +150,38 @@ defmodule SlayPlay.Player do
     end
   end
 
+  @doc """
+  Gets the current active song
+
+  An active is one that is either `:playing` or `:paused`.
+  All other songs are `:stopped`.
+  """
   def get_current_active_song do
     Repo.one(from s in Song, where: s.status in [:playing, :paused])
   end
 
+  @doc """
+  Lists all songs
+
+  An optional limit can be supplied (defaults to 100)
+  """
   def list_songs(limit \\ 100) do
     from(s in Song, limit: ^limit)
     |> order_by_playlist(:asc)
     |> Repo.all()
   end
 
+  @doc """
+  Stores an mp3 in the permenant location
+  """
   def store_mp3(%Song{} = song, tmp_path) do
     File.mkdir_p!(Path.dirname(song.mp3_filepath))
     File.cp!(tmp_path, song.mp3_filepath)
   end
 
+  @doc """
+  Put the MP3 stats to the song changeset
+  """
   def put_stats(%Ecto.Changeset{} = changeset, %MP3Stat{} = stat) do
     chset = Song.put_stats(changeset, stat)
 
@@ -154,6 +192,9 @@ defmodule SlayPlay.Player do
     end
   end
 
+  @doc """
+  Imports one or more songs
+  """
   def import_songs(changesets, consume_file)
       when is_map(changesets) and is_function(consume_file, 2) do
     multi =
@@ -210,15 +251,128 @@ defmodule SlayPlay.Player do
     end
   end
 
-  defp broadcast_imported(songs) do
-    songs = Enum.map(songs, fn {_ref, song} -> song end)
-    broadcast!(%Events.SongsImported{songs: songs})
-  end
-
+  @doc """
+  Parses a filename to try to extract title and artist
+  """
   def parse_file_name(name) do
     case Regex.split(~r/[-–]/, Path.rootname(name), parts: 2) do
       [title] -> %{title: String.trim(title), artist: nil}
       [title, artist] -> %{title: String.trim(title), artist: String.trim(artist)}
+    end
+  end
+
+  @doc """
+  Gets elapsed time from song start
+  """
+  def elapsed_playback(%Song{} = song) do
+    cond do
+      playing?(song) ->
+        start_seconds = song.played_at |> DateTime.to_unix()
+        System.os_time(:second) - start_seconds
+
+      paused?(song) ->
+        DateTime.diff(song.paused_at, song.played_at, :second)
+
+      stopped?(song) ->
+        0
+    end
+  end
+
+  @doc """
+  Applies changes to a song
+  """
+  def change_song(song_or_changeset, attrs \\ %{})
+
+  def change_song(%Song{} = song, attrs) do
+    Song.changeset(song, attrs)
+  end
+
+  @keep_changes [:duration, :mp3_filesize, :mp3_filepath]
+  def change_song(%Ecto.Changeset{} = prev_changeset, attrs) do
+    %Song{}
+    |> change_song(attrs)
+    |> Ecto.Changeset.change(Map.take(prev_changeset.changes, @keep_changes))
+  end
+
+  @doc """
+  Gets a song by id
+  """
+  def get_song!(id), do: Repo.get!(Song, id)
+
+  @doc """
+  Gets the first song in the list
+  """
+  def get_first_song do
+    from(s in Song,
+      limit: 1
+    )
+    |> order_by_playlist(:asc)
+    |> Repo.one()
+  end
+
+  @doc """
+  Gets the last song in the list
+  """
+  def get_last_song do
+    from(s in Song,
+      limit: 1
+    )
+    |> order_by_playlist(:desc)
+    |> Repo.one()
+  end
+
+  @doc """
+  Gets the next song in the list
+  """
+  def get_next_song(%Song{} = song) do
+    next =
+      from(s in Song,
+        where: s.id > ^song.id,
+        limit: 1
+      )
+      |> order_by_playlist(:asc)
+      |> Repo.one()
+
+    next || get_first_song()
+  end
+
+  @doc """
+  Gets the previous song in the list
+  """
+  def get_prev_song(%Song{} = song) do
+    prev =
+      from(s in Song,
+        where: s.id < ^song.id,
+        order_by: [desc: s.inserted_at, desc: s.id],
+        limit: 1
+      )
+      |> order_by_playlist(:desc)
+      |> Repo.one()
+
+    prev || get_last_song()
+  end
+
+  @doc """
+  Updates a song
+  """
+  def update_song(%Song{} = song, attrs) do
+    song
+    |> Song.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a song
+  """
+  def delete_song(%Song{} = song) do
+    delete_song_file(song)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.delete(:delete, song)
+    |> Repo.transaction()
+    |> case do
+      {:ok, _} -> :ok
+      other -> other
     end
   end
 
@@ -234,94 +388,6 @@ defmodule SlayPlay.Player do
     end
   end
 
-  def elapsed_playback(%Song{} = song) do
-    cond do
-      playing?(song) ->
-        start_seconds = song.played_at |> DateTime.to_unix()
-        System.os_time(:second) - start_seconds
-
-      paused?(song) ->
-        DateTime.diff(song.paused_at, song.played_at, :second)
-
-      stopped?(song) ->
-        0
-    end
-  end
-
-  def change_song(song_or_changeset, attrs \\ %{})
-
-  def change_song(%Song{} = song, attrs) do
-    Song.changeset(song, attrs)
-  end
-
-  @keep_changes [:duration, :mp3_filesize, :mp3_filepath]
-  def change_song(%Ecto.Changeset{} = prev_changeset, attrs) do
-    %Song{}
-    |> change_song(attrs)
-    |> Ecto.Changeset.change(Map.take(prev_changeset.changes, @keep_changes))
-  end
-
-  def get_song!(id), do: Repo.get!(Song, id)
-
-  def get_first_song do
-    from(s in Song,
-      limit: 1
-    )
-    |> order_by_playlist(:asc)
-    |> Repo.one()
-  end
-
-  def get_last_song do
-    from(s in Song,
-      limit: 1
-    )
-    |> order_by_playlist(:desc)
-    |> Repo.one()
-  end
-
-  def get_next_song(%Song{} = song) do
-    next =
-      from(s in Song,
-        where: s.id > ^song.id,
-        limit: 1
-      )
-      |> order_by_playlist(:asc)
-      |> Repo.one()
-
-    next || get_first_song()
-  end
-
-  def get_prev_song(%Song{} = song) do
-    prev =
-      from(s in Song,
-        where: s.id < ^song.id,
-        order_by: [desc: s.inserted_at, desc: s.id],
-        limit: 1
-      )
-      |> order_by_playlist(:desc)
-      |> Repo.one()
-
-    prev || get_last_song()
-  end
-
-  def update_song(%Song{} = song, attrs) do
-    song
-    |> Song.changeset(attrs)
-    |> Repo.update()
-  end
-
-  def delete_song(%Song{} = song) do
-    delete_song_file(song)
-
-    Ecto.Multi.new()
-    |> Ecto.Multi.delete(:delete, song)
-    |> Repo.transaction()
-    |> case do
-      {:ok, _} -> :ok
-      other -> other
-    end
-  end
-
   defp broadcast!(msg) do
     Logger.info("Broadcasting #{inspect(msg.__struct__ || "unknown")}")
     Phoenix.PubSub.broadcast!(@pubsub, "player:default", {__MODULE__, msg})
@@ -329,5 +395,10 @@ defmodule SlayPlay.Player do
 
   defp order_by_playlist(%Ecto.Query{} = query, direction) when direction in [:asc, :desc] do
     from(s in query, order_by: [{^direction, s.inserted_at}, {^direction, s.id}])
+  end
+
+  defp broadcast_imported(songs) do
+    songs = Enum.map(songs, fn {_ref, song} -> song end)
+    broadcast!(%Events.SongsImported{songs: songs})
   end
 end
