@@ -3,16 +3,34 @@ defmodule SlayPlay.Player do
   The player context
   """
 
+  require Logger
+
   import Ecto.Query, warn: false
-  alias SlayPlay.MP3Stat
+  alias SlayPlay.{MP3Stat, Repo}
   alias SlayPlay.Player.{Events, Song}
   alias Ecto.{Changeset, Multi}
 
   @pubsub SlayPlay.PubSub
+  @auto_next_threshold_seconds 5
+  @max_songs 30
 
   defdelegate stopped?(song), to: Song
   defdelegate playing?(song), to: Song
   defdelegate paused?(song), to: Song
+
+  @doc """
+  Subscribes to the default player
+  """
+  def subscribe do
+    Phoenix.PubSub.subscribe(@pubsub, "player:default")
+  end
+
+  @doc """
+  Unsubscribes from the player
+  """
+  def unsubscribe do
+    Phoenix.PubSub.unsubscribe(@pubsub, "player:default")
+  end
 
   @doc """
   Gets the local filepath for songs
@@ -83,6 +101,42 @@ defmodule SlayPlay.Player do
       |> Repo.transaction()
 
     broadcast!(%Events.Pause{song: song})
+  end
+
+  def play_next_song_auto do
+    song = get_current_active_song() || get_first_song()
+
+    if song && elapsed_playback(song) >= song.duration - @auto_next_threshold_seconds do
+      song
+      |> get_next_song()
+      |> play_song()
+    end
+  end
+
+  def play_prev_song do
+    song = get_current_active_song() || get_first_song()
+
+    if prev_song = get_prev_song(song) do
+      play_song(prev_song)
+    end
+  end
+
+  def play_next_song do
+    song = get_current_active_song() || get_first_song()
+
+    if next_song = get_next_song(song) do
+      play_song(next_song)
+    end
+  end
+
+  def get_current_active_song do
+    Repo.one(from s in Song, where: s.status in [:playing, :paused])
+  end
+
+  def list_songs(limit \\ 100) do
+    from(s in Song, limit: ^limit)
+    |> order_by_playlist(:asc)
+    |> Repo.all()
   end
 
   def store_mp3(%Song{} = song, tmp_path) do
@@ -207,9 +261,73 @@ defmodule SlayPlay.Player do
     |> Ecto.Changeset.change(Map.take(prev_changeset.changes, @keep_changes))
   end
 
-  def get_song!(id), do: Repo.replica().get!(Song, id)
+  def get_song!(id), do: Repo.get!(Song, id)
+
+  def get_first_song do
+    from(s in Song,
+      limit: 1
+    )
+    |> order_by_playlist(:asc)
+    |> Repo.one()
+  end
+
+  def get_last_song do
+    from(s in Song,
+      limit: 1
+    )
+    |> order_by_playlist(:desc)
+    |> Repo.one()
+  end
+
+  def get_next_song(%Song{} = song) do
+    next =
+      from(s in Song,
+        where: s.id > ^song.id,
+        limit: 1
+      )
+      |> order_by_playlist(:asc)
+      |> Repo.one()
+
+    next || get_first_song()
+  end
+
+  def get_prev_song(%Song{} = song) do
+    prev =
+      from(s in Song,
+        where: s.id < ^song.id,
+        order_by: [desc: s.inserted_at, desc: s.id],
+        limit: 1
+      )
+      |> order_by_playlist(:desc)
+      |> Repo.one()
+
+    prev || get_last_song()
+  end
+
+  def update_song(%Song{} = song, attrs) do
+    song
+    |> Song.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_song(%Song{} = song) do
+    delete_song_file(song)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.delete(:delete, song)
+    |> Repo.transaction()
+    |> case do
+      {:ok, _} -> :ok
+      other -> other
+    end
+  end
 
   defp broadcast!(msg) do
+    Logger.info("Broadcasting #{inspect(msg.__struct__ || "unknown")}")
     Phoenix.PubSub.broadcast!(@pubsub, "player:default", {__MODULE__, msg})
+  end
+
+  defp order_by_playlist(%Ecto.Query{} = query, direction) when direction in [:asc, :desc] do
+    from(s in query, order_by: [{^direction, s.inserted_at}, {^direction, s.id}])
   end
 end

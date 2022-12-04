@@ -65,6 +65,32 @@ defmodule SlayPlayWeb.CoreComponents do
     )
   end
 
+  attr :id, :string, required: true
+  attr :min, :integer, default: 0
+  attr :max, :integer, default: 100
+  attr :value, :integer
+
+  def progress_bar(assigns) do
+    assigns = assign_new(assigns, :value, fn -> assigns[:min] || 0 end)
+
+    ~H"""
+    <div
+      id={"#{@id}-container"}
+      class="bg-gray-200 flex-auto dark:bg-black rounded-full overflow-hidden"
+      phx-update="ignore"
+    >
+      <div
+        id={@id}
+        class="bg-lime-500 dark:bg-lime-400 h-1.5 w-0"
+        data-min={@min}
+        data-max={@max}
+        data-val={@value}
+      >
+      </div>
+    </div>
+    """
+  end
+
   attr :flash, :map
   attr :kind, :atom
 
@@ -305,6 +331,53 @@ defmodule SlayPlayWeb.CoreComponents do
     """
   end
 
+  attr :id, :any, required: true
+  attr :module, :atom, required: true
+  attr :row_id, :any, default: false
+  attr :rows, :list, required: true
+  attr :active_id, :any, default: nil
+
+  slot :col do
+    attr :label, :string
+    attr :class, :string
+  end
+
+  def live_table(assigns) do
+    assigns = assign(assigns, :col, for(col <- assigns.col, col[:if] != false, do: col))
+
+    ~H"""
+    <div class="hidden mt-8 sm:block">
+      <div class="align-middle inline-block min-w-full border-b border-gray-200">
+        <table class="min-w-full">
+          <thead>
+            <tr class="border-t border-gray-200">
+              <%= for col <- @col do %>
+                <th class="px-6 py-3 border-b border-gray-200 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <span class="lg:pl-2"><%= col.label %></span>
+                </th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody id={@id} class="bg-white divide-y divide-gray-100" phx-update="append">
+            <%= for {row, i} <- Enum.with_index(@rows) do %>
+              <.live_component
+                module={@module}
+                id={@row_id.(row)}
+                row={row}
+                col={@col}
+                index={i}
+                active_id={@active_id}
+                class="hover:bg-gray-50"
+                ,
+              />
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    """
+  end
+
   @doc """
   Calls a wired up event listener to call a function with arguments
 
@@ -316,5 +389,11 @@ defmodule SlayPlayWeb.CoreComponents do
 
   def focus(js \\ %JS{}, parent, to) do
     JS.dispatch(js, "js:focus", to: to, detail: %{parent: parent})
+  end
+
+  def focus_closest(js \\ %JS{}, to) do
+    js
+    |> JS.dispatch("js:focus-closest", to: to)
+    |> hide(to)
   end
 end

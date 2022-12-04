@@ -7,6 +7,8 @@
 
 <.live_component module={SlayPlayWeb.LayoutComponent} id="layout" />
 
+<%= live_render(@socket, SlayPlayWeb.PlayerLive, id: "player", session: %{}, sticky: true) %>
+
 <main class="container-full">
   <%= @inner_content %>
 </main>
