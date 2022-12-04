@@ -8,11 +8,11 @@ defmodule SlayPlayWeb.PlayerLive do
   def render(assigns) do
     ~H"""
     <!-- player -->
-    <div id="audio-player" phx-hook="AudioPlayer" class="w-full" role="region" aria-label="Player">
+    <div id="audio-player" phx-hook="AudioPlayer" class="w-full z-50 absolute" role="region" aria-label="Player">
       <div id="audio-ignore" phx-update="ignore">
         <audio></audio>
       </div>
-      <button phx-click={toggle_player()} class="absolute -mt-6 px-1 bg-gray-200 rounded-tl-lg rounded-tr-lg right-4">
+      <button phx-click={toggle_player()} class="absolute -mt-6 px-1 bg-gray-200 rounded-tl-lg rounded-tr-lg right-4 z-50">
         <.icon name={:chevron_up} />
       </button>
       <div id="audio-controls" class="relative hidden">

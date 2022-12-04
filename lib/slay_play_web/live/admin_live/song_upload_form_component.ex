@@ -59,7 +59,7 @@ defmodule SlayPlayWeb.AdminLive.SongUploadFormComponent do
           {:noreply,
            socket
            |> put_flash(:info, "#{map_size(songs)} song(s) uploaded")
-           |> push_patch(to: SlayPlayWeb.Router.Helpers.admin_slides_path(socket, :index))}
+           |> push_patch(to: SlayPlayWeb.Router.Helpers.admin_songs_path(socket, :index))}
 
         {:error, {failed_op, reason}} ->
           {:noreply, put_error(socket, {failed_op, reason})}

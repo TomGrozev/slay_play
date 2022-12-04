@@ -16,6 +16,11 @@ defmodule SlayPlayWeb.AdminLive.Index do
       <:col :let={%{station: station}} label="Name"><%= station.name %></:col>
       <:col :let={%{station: station}} label="Transition Seconds"><%= station.transition_time_s %></:col>
     </.live_table>
+
+    <div class="flex items-center justify-space-around mt-4 mr-4 float-right">
+      <.button id="link-slides" primary patch={Routes.admin_slides_path(@socket, :index)}>Manage Slides</.button>
+      <.button id="link-songs" primary patch={Routes.admin_songs_path(@socket, :index)}>Manage Songs</.button>
+    </div>
     """
   end
 
