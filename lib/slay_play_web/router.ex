@@ -24,6 +24,8 @@ defmodule SlayPlayWeb.Router do
     live "/admin", AdminLive.Index, :index
     live "/admin/songs", AdminLive.Songs, :index
     live "/admin/songs/new", AdminLive.Songs, :new
+    live "/admin/slides", AdminLive.Slides, :index
+    live "/admin/slides/new", AdminLive.Slides, :new
   end
 
   # Other scopes may use custom stacks.

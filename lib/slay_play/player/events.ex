@@ -10,4 +10,12 @@ defmodule SlayPlay.Player.Events do
   defmodule SongsImported do
     defstruct songs: []
   end
+
+  defmodule SlideChanged do
+    defstruct slide: nil
+  end
+
+  defmodule SlideCreated do
+    defstruct slide: nil
+  end
 end

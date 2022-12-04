@@ -164,7 +164,7 @@ defmodule SlayPlayWeb.CoreComponents do
           type="button"
           class="inline-flex bg-green-50 rounded-md p-1.5 text-green-500 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-green-50 focus:ring-green-600"
         >
-          <.icon name={:x} class="w-4 h-4" />
+          <.icon name={:x_mark} class="w-4 h-4" />
         </button>
       </div>
     </div>

@@ -7,7 +7,7 @@ defmodule SlayPlay.Player do
 
   import Ecto.Query, warn: false
   alias SlayPlay.{MP3Stat, Repo}
-  alias SlayPlay.Player.{Events, Song}
+  alias SlayPlay.Player.{Events, Song, Slide}
   alias Ecto.{Changeset, Multi}
 
   @pubsub SlayPlay.PubSub
@@ -39,7 +39,7 @@ defmodule SlayPlay.Player do
   """
   def local_filepath(filename_uuid, type \\ :songs) when is_binary(filename_uuid) do
     dir = SlayPlay.config([:files, :uploads_dir])
-    Path.join([dir, type, filename_uuid])
+    Path.join([dir, to_string(type), filename_uuid])
   end
 
   @doc """
@@ -172,11 +172,31 @@ defmodule SlayPlay.Player do
   end
 
   @doc """
+  Lists all slides
+
+  An optional limit can be supplied (defaults to 100)
+  """
+  def list_slides(limit \\ 100) do
+    from(s in Slide, limit: ^limit)
+    |> order_by_playlist(:asc)
+    |> Repo.all()
+  end
+
+  @doc """
   Stores an mp3 in the permenant location
   """
   def store_mp3(%Song{} = song, tmp_path) do
     File.mkdir_p!(Path.dirname(song.mp3_filepath))
     File.cp!(tmp_path, song.mp3_filepath)
+  end
+
+  @doc """
+  Stores a slide bg in the permenant location
+  """
+  def store_bg(%Slide{} = slide, tmp_path) do
+    path = local_filepath(slide.img_name, :background)
+    File.mkdir_p!(Path.dirname(path))
+    File.cp!(tmp_path, path)
   end
 
   @doc """
@@ -252,6 +272,24 @@ defmodule SlayPlay.Player do
   end
 
   @doc """
+  Creates a slide
+  """
+  def create_slide(params, type, consume_file)
+      when is_function(consume_file, 1) do
+    with [extension | _] <- MIME.extensions(type),
+         changeset = change_slide(%Slide{}, params) |> Slide.put_img_name(extension),
+         {:ok, slide} <- Repo.insert(changeset) do
+      IO.inspect(slide)
+      consume_file.(fn tmp_path -> store_bg(slide, tmp_path) end)
+
+      broadcast_slide_create(slide)
+
+      {:ok, slide}
+    end
+    |> IO.inspect()
+  end
+
+  @doc """
   Parses a filename to try to extract title and artist
   """
   def parse_file_name(name) do
@@ -295,9 +333,21 @@ defmodule SlayPlay.Player do
   end
 
   @doc """
+  Applies changes to a slide
+  """
+  def change_slide(%Slide{} = slide, attrs \\ %{}) do
+    Slide.changeset(slide, attrs)
+  end
+
+  @doc """
   Gets a song by id
   """
   def get_song!(id), do: Repo.get!(Song, id)
+
+  @doc """
+  Gets a slide by id
+  """
+  def get_slide(id), do: Repo.get!(Slide, id)
 
   @doc """
   Gets the first song in the list
@@ -367,10 +417,17 @@ defmodule SlayPlay.Player do
   def delete_song(%Song{} = song) do
     delete_song_file(song)
 
-    Ecto.Multi.new()
-    |> Ecto.Multi.delete(:delete, song)
-    |> Repo.transaction()
-    |> case do
+    case Repo.delete(song) do
+      {:ok, _} -> :ok
+      other -> other
+    end
+  end
+
+  @doc """
+  Deletes a slide
+  """
+  def delete_slide(%Slide{} = slide) do
+    case Repo.delete(slide) do
       {:ok, _} -> :ok
       other -> other
     end
@@ -400,5 +457,9 @@ defmodule SlayPlay.Player do
   defp broadcast_imported(songs) do
     songs = Enum.map(songs, fn {_ref, song} -> song end)
     broadcast!(%Events.SongsImported{songs: songs})
+  end
+
+  defp broadcast_slide_create(slide) do
+    broadcast!(%Events.SlideCreated{slide: slide})
   end
 end

@@ -108,6 +108,14 @@ defmodule SlayPlayWeb.AdminLive.Songs do
     {:noreply, socket}
   end
 
+  def handle_event("delete", %{"id" => id}, socket) do
+    song = Player.get_song!(id)
+
+    :ok = Player.delete_song(song)
+
+    {:noreply, socket}
+  end
+
   def handle_info({Player, %Player.Events.Play{song: song}}, socket) do
     {:noreply, play_song(socket, song)}
   end
