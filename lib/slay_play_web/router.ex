@@ -1,6 +1,8 @@
 defmodule SlayPlayWeb.Router do
   use SlayPlayWeb, :router
 
+  import SlayPlayWeb.BasicAuth, only: [redirect_if_authenticated: 2]
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -15,17 +17,27 @@ defmodule SlayPlayWeb.Router do
   end
 
   scope "/", SlayPlayWeb do
+    pipe_through [:browser, :redirect_if_authenticated]
+
+    post "/session", SignInController, :new
+
+    get "/signin", SignInController, :index
+  end
+
+  scope "/", SlayPlayWeb do
     pipe_through :browser
 
     live "/", HomeLive.Home, :index
 
     get "/files/:type/:id", FileController, :show
 
-    live "/admin", AdminLive.Index, :index
-    live "/admin/songs", AdminLive.Songs, :index
-    live "/admin/songs/new", AdminLive.Songs, :new
-    live "/admin/slides", AdminLive.Slides, :index
-    live "/admin/slides/new", AdminLive.Slides, :new
+    live_session :admin, on_mount: [{SlayPlayWeb.BasicAuth, :ensure_authenticated}] do
+      live "/admin", AdminLive.Index, :index
+      live "/admin/songs", AdminLive.Songs, :index
+      live "/admin/songs/new", AdminLive.Songs, :new
+      live "/admin/slides", AdminLive.Slides, :index
+      live "/admin/slides/new", AdminLive.Slides, :new
+    end
   end
 
   # Other scopes may use custom stacks.

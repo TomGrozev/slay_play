@@ -1,5 +1,7 @@
 import Config
 
+config :slay_play, SlayPlayWeb.BasicAuth, password: "dev"
+
 config :slay_play, :files,
   uploads_dir: Path.expand("../priv/uploads", __DIR__),
   host: [scheme: "http", host: "localhost", port: 4000]
